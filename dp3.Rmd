@@ -1,0 +1,581 @@
+---
+title: "OIDD245: Data Project 3 - Predicting Personality Types"
+output: html_notebook
+---
+## Installing necessary libraries
+
+```{r}
+install.packages("plotly")
+install.packages("beeswarm")
+install.packages("twitteR")
+install.packages("gtrendsR")
+install.packages("wordcloud2")
+install.packages("maps")
+
+# import necessary libraries
+
+# data wrangling
+library(tidyverse)
+library(dplyr)
+library(tidyr)
+library(rvest)
+library(stringr)
+library(magrittr)
+library(readr)
+
+# data visualization
+library(wordcloud)
+library(wordcloud2)
+library(ggplot2)
+library(plotly)
+library(RColorBrewer)
+library(beeswarm)
+library(twitteR)
+library(maps)
+
+# data analysis
+library(gtrendsR)
+library(syuzhet)
+library(tm)
+
+```
+
+```{r}
+# mbti personality test data
+mbti_data = read_csv('mbti_1.csv')
+mbti_data
+```
+## EDA Questions:
+1. Most common/last common personality type --> INFP/ESTJ
+2. Words associated with each personality type
+3. Introverts or extroverts more common? --> Introverts
+
+## Overall Questions:
+1. How accurately can we predict a user's personality based on what they post? // does the content we post indicate something about our personality type?
+2. What words/sentiments are often associated to which personality types?
+3. Can we then use this model to predict what quotes they would resonate with and assign personality types to tweets? 
+4. Can I predict my own personality type with my past posts and comments?
+
+## EDA: MBTI Dataset
+```{r}
+# size of dataset
+dim(mbti_data)
+summary(mbti_data)
+
+# n = number of users
+types = unique(mbti_data$type)
+types
+total = mbti_data %>% group_by(type) %>% tally()
+total$posts = total$n * 50
+# order from type with most posts to least
+total = total[order(-total$posts),]
+total
+
+coul <- brewer.pal(16, "Spectral")  
+
+# number of posts per personality type
+barplot(total$posts, main="Number of posts per personality type", xlab="Personality types", ylab="No. of posts available", names.arg = total$type, las=2, col=coul)
+
+# number of users per personality type
+barplot(total$n, main="Number of users per personality type", xlab="Personality types", ylab="No. of users", names.arg = total$type, las=2, col=coul)
+
+```
+
+```{r}
+# count of each indicator
+I = 1832+1470+1304+1091+337+271+205+166
+E = 685+675+231+190+89+48+42+39
+N = 1832+1470+1304+1091+685+675+231+190
+S = 337+271+205+166+89+48+42+39
+F = 1832+1470+675+271+190+166+48+42
+T = 39+89+205+231+337+685+1091+1304
+P = 1832+1304+685+675+337+271+89+48
+J = 39+42+166+190+205+231+1091+1470
+
+type <- c("I", "E", "N", "S", "F", "T", "P", "J")
+count <- c(I, E, N, S, F, T, P, J)
+indicators <-data.frame(type, count)
+indicators
+
+# number of posts per personality type
+barplot(indicators$count, main="Count of each indicator", xlab="Indicator", ylab="Count", names.arg = indicators$type, col=coul)
+
+```
+## Text exploration with word cloud
+```{r}
+# INFP
+infp <- mbti_data %>% filter(str_detect(type, "INFP"))
+infpcorp.original = VCorpus(VectorSource(infp$posts))
+infpcorp <- tm_map(infpcorp.original, removePunctuation)
+infpcorp <- tm_map(infpcorp, removeNumbers)
+infpcorp <- tm_map(infpcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+infpcorp <- tm_map(infpcorp, content_transformer(tolower), lazy=TRUE) 
+infpcorp <- tm_map(infpcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+infpcorp <- tm_map(infpcorp, stripWhitespace)
+#infpcorp[[8]][1]
+
+set.seed(1234)
+infpdtms = removeSparseTerms(DocumentTermMatrix(infpcorp), .995)
+n <- 5
+top_infp <- findMostFreqTerms(infpdtms, n=n)
+top_infp_df <- do.call(rbind, lapply(top_infp, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_infp_df, colors=brewer.pal(8, "Paired"))
+```
+```{r}
+# INFJ
+infj <- mbti_data %>% filter(str_detect(type, "INFJ"))
+infjcorp.original = VCorpus(VectorSource(infj$posts))
+infjcorp <- tm_map(infjcorp.original, removePunctuation)
+infjcorp <- tm_map(infjcorp, removeNumbers)
+infjcorp <- tm_map(infjcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+infjcorp <- tm_map(infjcorp, content_transformer(tolower), lazy=TRUE) 
+infjcorp <- tm_map(infjcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+infjcorp <- tm_map(infjcorp, stripWhitespace)
+#infjcorp[[8]][1]
+
+set.seed(1234)
+infjdtms = removeSparseTerms(DocumentTermMatrix(infjcorp), .995)
+n <- 5
+top_infj <- findMostFreqTerms(infjdtms, n=n)
+top_infj_df <- do.call(rbind, lapply(top_infj, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_infj_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# INTP
+intp <- mbti_data %>% filter(str_detect(type, "INTP"))
+intpcorp.original = VCorpus(VectorSource(intp$posts))
+intpcorp <- tm_map(intpcorp.original, removePunctuation)
+intpcorp <- tm_map(intpcorp, removeNumbers)
+intpcorp <- tm_map(intpcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+intpcorp <- tm_map(intpcorp, content_transformer(tolower), lazy=TRUE) 
+intpcorp <- tm_map(intpcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+intpcorp <- tm_map(intpcorp, stripWhitespace)
+#intpcorp[[8]][1]
+
+set.seed(1234)
+intpdtms = removeSparseTerms(DocumentTermMatrix(intpcorp), .995)
+n <- 5
+top_intp <- findMostFreqTerms(intpdtms, n=n)
+top_intp_df <- do.call(rbind, lapply(top_intp, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_intp_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# INTJ
+intj <- mbti_data %>% filter(str_detect(type, "INTJ"))
+intjcorp.original = VCorpus(VectorSource(intj$posts))
+intjcorp <- tm_map(intjcorp.original, removePunctuation)
+intjcorp <- tm_map(intjcorp, removeNumbers)
+intjcorp <- tm_map(intjcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+intjcorp <- tm_map(intjcorp, content_transformer(tolower), lazy=TRUE) 
+intjcorp <- tm_map(intjcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+intjcorp <- tm_map(intjcorp, stripWhitespace)
+#intjcorp[[8]][1]
+
+set.seed(1234)
+intjdtms = removeSparseTerms(DocumentTermMatrix(intjcorp), .995)
+n <- 5
+top_intj <- findMostFreqTerms(intjdtms, n=n)
+top_intj_df <- do.call(rbind, lapply(top_intj, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_intj_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# ENTP
+entp <- mbti_data %>% filter(str_detect(type, "ENTP"))
+entpcorp.original = VCorpus(VectorSource(entp$posts))
+entpcorp <- tm_map(entpcorp.original, removePunctuation)
+entpcorp <- tm_map(entpcorp, removeNumbers)
+entpcorp <- tm_map(entpcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+entpcorp <- tm_map(entpcorp, content_transformer(tolower), lazy=TRUE) 
+entpcorp <- tm_map(entpcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+entpcorp <- tm_map(entpcorp, stripWhitespace)
+#entpcorp[[8]][1]
+
+set.seed(1234)
+entpdtms = removeSparseTerms(DocumentTermMatrix(entpcorp), .995)
+n <- 5
+top_entp <- findMostFreqTerms(entpdtms, n=n)
+top_entp_df <- do.call(rbind, lapply(top_entp, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_entp_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# ENFP
+enfp <- mbti_data %>% filter(str_detect(type, "ENFP"))
+enfpcorp.original = VCorpus(VectorSource(enfp$posts))
+enfpcorp <- tm_map(enfpcorp.original, removePunctuation)
+enfpcorp <- tm_map(enfpcorp, removeNumbers)
+enfpcorp <- tm_map(enfpcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+enfpcorp <- tm_map(enfpcorp, content_transformer(tolower), lazy=TRUE) 
+enfpcorp <- tm_map(enfpcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+enfpcorp <- tm_map(enfpcorp, stripWhitespace)
+#enfpcorp[[8]][1]
+
+set.seed(1234)
+enfpdtms = removeSparseTerms(DocumentTermMatrix(enfpcorp), .995)
+n <- 5
+top_enfp <- findMostFreqTerms(enfpdtms, n=n)
+top_enfp_df <- do.call(rbind, lapply(top_enfp, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_enfp_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# ISTP
+istp <- mbti_data %>% filter(str_detect(type, "ISTP"))
+istpcorp.original = VCorpus(VectorSource(istp$posts))
+istpcorp <- tm_map(istpcorp.original, removePunctuation)
+istpcorp <- tm_map(istpcorp, removeNumbers)
+istpcorp <- tm_map(istpcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+istpcorp <- tm_map(istpcorp, content_transformer(tolower), lazy=TRUE) 
+istpcorp <- tm_map(istpcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+istpcorp <- tm_map(istpcorp, stripWhitespace)
+#istpcorp[[8]][1]
+
+set.seed(1234)
+istpdtms = removeSparseTerms(DocumentTermMatrix(istpcorp), .995)
+n <- 5
+top_istp <- findMostFreqTerms(istpdtms, n=n)
+top_istp_df <- do.call(rbind, lapply(top_istp, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_istp_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# ISFP
+isfp <- mbti_data %>% filter(str_detect(type, "ISFP"))
+isfpcorp.original = VCorpus(VectorSource(isfp$posts))
+isfpcorp <- tm_map(isfpcorp.original, removePunctuation)
+isfpcorp <- tm_map(isfpcorp, removeNumbers)
+isfpcorp <- tm_map(isfpcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+isfpcorp <- tm_map(isfpcorp, content_transformer(tolower), lazy=TRUE) 
+isfpcorp <- tm_map(isfpcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+isfpcorp <- tm_map(isfpcorp, stripWhitespace)
+#isfpcorp[[8]][1]
+
+set.seed(1234)
+isfpdtms = removeSparseTerms(DocumentTermMatrix(isfpcorp), .995)
+n <- 5
+top_isfp <- findMostFreqTerms(isfpdtms, n=n)
+top_isfp_df <- do.call(rbind, lapply(top_isfp, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_isfp_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# ENTJ
+entj <- mbti_data %>% filter(str_detect(type, "ENTJ"))
+entjcorp.original = VCorpus(VectorSource(entj$posts))
+entjcorp <- tm_map(entjcorp.original, removePunctuation)
+entjcorp <- tm_map(entjcorp, removeNumbers)
+entjcorp <- tm_map(entjcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+entjcorp <- tm_map(entjcorp, content_transformer(tolower), lazy=TRUE) 
+entjcorp <- tm_map(entjcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+entjcorp <- tm_map(entjcorp, stripWhitespace)
+#entjcorp[[8]][1]
+
+set.seed(1234)
+entjdtms = removeSparseTerms(DocumentTermMatrix(entjcorp), .995)
+n <- 5
+top_entj <- findMostFreqTerms(entjdtms, n=n)
+top_entj_df <- do.call(rbind, lapply(top_entj, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_entj_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# ISTJ
+istj <- mbti_data %>% filter(str_detect(type, "ISTJ"))
+istjcorp.original = VCorpus(VectorSource(istj$posts))
+istjcorp <- tm_map(istjcorp.original, removePunctuation)
+istjcorp <- tm_map(istjcorp, removeNumbers)
+istjcorp <- tm_map(istjcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+istjcorp <- tm_map(istjcorp, content_transformer(tolower), lazy=TRUE) 
+istjcorp <- tm_map(istjcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+istjcorp <- tm_map(istjcorp, stripWhitespace)
+#istjcorp[[8]][1]
+
+set.seed(1234)
+istjdtms = removeSparseTerms(DocumentTermMatrix(istjcorp), .995)
+n <- 5
+top_istj <- findMostFreqTerms(istjdtms, n=n)
+top_istj_df <- do.call(rbind, lapply(top_istj, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_istj_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# ENFJ
+enfj <- mbti_data %>% filter(str_detect(type, "ENFJ"))
+enfjcorp.original = VCorpus(VectorSource(enfj$posts))
+enfjcorp <- tm_map(enfjcorp.original, removePunctuation)
+enfjcorp <- tm_map(enfjcorp, removeNumbers)
+enfjcorp <- tm_map(enfjcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+enfjcorp <- tm_map(enfjcorp, content_transformer(tolower), lazy=TRUE) 
+enfjcorp <- tm_map(enfjcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+enfjcorp <- tm_map(enfjcorp, stripWhitespace)
+#enfjcorp[[8]][1]
+
+set.seed(1234)
+enfjdtms = removeSparseTerms(DocumentTermMatrix(enfjcorp), .995)
+n <- 10
+top_enfj <- findMostFreqTerms(enfjdtms, n=n)
+top_enfj_df <- do.call(rbind, lapply(top_enfj, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_enfj_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# ISFJ
+isfj <- mbti_data %>% filter(str_detect(type, "ISFJ"))
+isfjcorp.original = VCorpus(VectorSource(isfj$posts))
+isfjcorp <- tm_map(isfjcorp.original, removePunctuation)
+isfjcorp <- tm_map(isfjcorp, removeNumbers)
+isfjcorp <- tm_map(isfjcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+isfjcorp <- tm_map(isfjcorp, content_transformer(tolower), lazy=TRUE) 
+isfjcorp <- tm_map(isfjcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+isfjcorp <- tm_map(isfjcorp, stripWhitespace)
+#isfjcorp[[8]][1]
+
+set.seed(1234)
+isfjdtms = removeSparseTerms(DocumentTermMatrix(isfjcorp), .995)
+n <- 10
+top_isfj <- findMostFreqTerms(isfjdtms, n=n)
+top_isfj_df <- do.call(rbind, lapply(top_isfj, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_isfj_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# ESTP
+estp <- mbti_data %>% filter(str_detect(type, "ESTP"))
+estpcorp.original = VCorpus(VectorSource(estp$posts))
+estpcorp <- tm_map(estpcorp.original, removePunctuation)
+estpcorp <- tm_map(estpcorp, removeNumbers)
+estpcorp <- tm_map(estpcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+estpcorp <- tm_map(estpcorp, content_transformer(tolower), lazy=TRUE) 
+estpcorp <- tm_map(estpcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+estpcorp <- tm_map(estpcorp, stripWhitespace)
+#estpcorp[[8]][1]
+
+set.seed(1234)
+estpdtms = removeSparseTerms(DocumentTermMatrix(estpcorp), .995)
+n <- 10
+top_estp <- findMostFreqTerms(estpdtms, n=n)
+top_estp_df <- do.call(rbind, lapply(top_estp, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_estp_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# ESFP
+esfp <- mbti_data %>% filter(str_detect(type, "ESFP"))
+esfpcorp.original = VCorpus(VectorSource(esfp$posts))
+esfpcorp <- tm_map(esfpcorp.original, removePunctuation)
+esfpcorp <- tm_map(esfpcorp, removeNumbers)
+esfpcorp <- tm_map(esfpcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+esfpcorp <- tm_map(esfpcorp, content_transformer(tolower), lazy=TRUE) 
+esfpcorp <- tm_map(esfpcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+esfpcorp <- tm_map(esfpcorp, stripWhitespace)
+#esfpcorp[[8]][1]
+
+set.seed(1234)
+esfpdtms = removeSparseTerms(DocumentTermMatrix(esfpcorp), .995)
+n <- 20
+top_esfp <- findMostFreqTerms(esfpdtms, n=n)
+top_esfp_df <- do.call(rbind, lapply(top_esfp, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_esfp_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# ESFJ
+esfj <- mbti_data %>% filter(str_detect(type, "ESFJ"))
+esfjcorp.original = VCorpus(VectorSource(esfj$posts))
+esfjcorp <- tm_map(esfjcorp.original, removePunctuation)
+esfjcorp <- tm_map(esfjcorp, removeNumbers)
+esfjcorp <- tm_map(esfjcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+esfjcorp <- tm_map(esfjcorp, content_transformer(tolower), lazy=TRUE) 
+esfjcorp <- tm_map(esfjcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+esfjcorp <- tm_map(esfjcorp, stripWhitespace)
+#esfjcorp[[8]][1]
+
+set.seed(1234)
+esfjdtms = removeSparseTerms(DocumentTermMatrix(esfjcorp), .995)
+n <- 20
+top_esfj <- findMostFreqTerms(esfjdtms, n=n)
+top_esfj_df <- do.call(rbind, lapply(top_esfj, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_esfj_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# ESTJ
+estj <- mbti_data %>% filter(str_detect(type, "ESTJ"))
+estjcorp.original = VCorpus(VectorSource(estj$posts))
+estjcorp <- tm_map(estjcorp.original, removePunctuation)
+estjcorp <- tm_map(estjcorp, removeNumbers)
+estjcorp <- tm_map(estjcorp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+estjcorp <- tm_map(estjcorp, content_transformer(tolower), lazy=TRUE) 
+estjcorp <- tm_map(estjcorp, content_transformer(removeWords), c("https", "dont", "people")) 
+estjcorp <- tm_map(estjcorp, stripWhitespace)
+#estjcorp[[8]][1]
+
+set.seed(1234)
+estjdtms = removeSparseTerms(DocumentTermMatrix(estjcorp), .995)
+n <- 20
+top_estj <- findMostFreqTerms(estjdtms, n=n)
+top_estj_df <- do.call(rbind, lapply(top_estj, function(x) { x <- names(x);length(x) <- n;x }))
+wordcloud(top_estj_df, colors=brewer.pal(8, "Paired"))
+```
+
+```{r}
+# LDA on entire thing
+corp.original = VCorpus(VectorSource(mbti_data$posts))
+corp <- tm_map(corp.original, removePunctuation)
+corp <- tm_map(corp, removeNumbers)
+corp <- tm_map(corp, content_transformer(removeWords), stopwords("SMART"), lazy=TRUE)  
+corp <- tm_map(corp, content_transformer(tolower), lazy=TRUE) 
+corp <- tm_map(corp, content_transformer(removeWords), c("https", "infp", "infj", "intp", "intj", "entp", "enfp", "istp", "isfp", "entj", "istj", "enfj", "isfj", "estp", "esfp", "esfj", "estj")) 
+corp <- tm_map(corp, stripWhitespace)
+#corp[[8]][1]
+
+set.seed(1234)
+dtms = removeSparseTerms(DocumentTermMatrix(corp), .995)
+#n <- 5
+#top <- findMostFreqTerms(dtms, n=n)
+#top_df <- do.call(rbind, lapply(top, function(x) { x <- names(x);length(x) <- n;x }))
+#wordcloud(top_df, colors=brewer.pal(8, "Paired"))
+
+dtm_matrix = as.matrix(dtms)
+terms = rowSums(dtm_matrix) != 0
+dtm_matrix = head(dtm_matrix[terms,], n=1000)
+ldaOut <- LDA(dtm_matrix, 16, control=list(seed=0), method="Gibbs")
+words = terms(ldaOut,10)
+words
+```
+
+```{r}
+topics = c("INFP","ENTP","ISTJ", "ENFP", "ISTP","ISFP", "ISFJ", "ESTP", "INFJ", "ENTJ","ENFJ","ESFP", "INTP", "INTJ", "ESFJ", "ESTJ")
+```
+
+```{r}
+# read in goodread quotes
+quotes = read_csv('quotes.csv')
+quotes
+```
+
+```{r}
+dic = Terms(dtms)
+
+topic_rankings = c()
+
+for (quote in quotes$quote) {
+  quote_corp = VCorpus(VectorSource(quote))
+  quote_corp = tm_map(quote_corp, removePunctuation)
+  quote_corp = tm_map(quote_corp, removeNumbers)
+  quote_corp = tm_map(quote_corp, content_transformer(tolower) ,lazy=TRUE)
+  quote_corp = tm_map(quote_corp, content_transformer(removeWords), c("TIL"), lazy=TRUE)  
+  quote_corp = tm_map(quote_corp, content_transformer(removeWords), stopwords("english") ,lazy=TRUE)
+  quote_corp = tm_map(quote_corp, content_transformer(stemDocument) ,lazy=TRUE)
+  quote_corp = tm_map(quote_corp, stripWhitespace)
+
+  new_dtm = DocumentTermMatrix(quote_corp, control=list(dictionary = dic))
+  new_dtm = new_dtm[rowSums(as.matrix(new_dtm))!=0,]
+  topic_probabilities = posterior(ldaOut, new_dtm)
+  #print(topic_probabilities$topics)
+  
+  # order topics to see which topic is most likely to be associated to given quote
+  topic_rankings = c(topic_rankings, topics[order(topic_probabilities$topics,decreasing = TRUE)[1]])
+}
+print(topic_rankings)
+
+```
+
+```{r}
+# build table
+table = data.frame("quotes"=quotes$quote, "author"=quotes$author, "type"=topic_rankings)
+row.names(table) = c()
+```
+
+```{r}
+# print contents of any 10 news articles
+head(table[,1:3], n = 10)
+```
+
+```{r}
+# google trends data
+gtrends_df = gtrends(keyword="mbti", time="today 3-m")
+
+# interests over time
+plot_ly(gtrends_df$interest_over_time, x=~date, y=~hits, marker=list(size=8, color = 'rgba(255, 182, 193, .9)'), line=list(width=2, color = 'rgba(152, 0, 0, .8)')) 
+
+# related topics
+gtrends_topics_df = gtrends(keyword="mbti", time="today 3-m")
+head(gtrends_topics_df$related_topics$value, 15)
+
+# related queries
+gtrends_queries_df = gtrends(keyword="mbti", time="today 3-m")
+head(gtrends_queries_df$related_queries$value, 15)
+
+usres <- gtrends(c("mbti", "personality type"), geo = c("US", "US"))
+plot(usres)
+
+res <- gtrends(c("mbti", "personality type"))
+plot(res)
+```
+```{r}
+# interest in "mbti" in us
+res <- gtrends("mbti",
+               geo = "US",
+               time = "all")
+ 
+state <- map_data("state")
+ 
+res$interest_by_region %>%
+  mutate(region = tolower(location)) %>%
+  filter(region %in% state$region) %>%
+  select(region, hits) -> my_df
+ 
+ggplot() +
+  geom_map(data = state,
+           map = state,
+           aes(x = long, y = lat, map_id = region),
+           fill="#ffffff", color="#ffffff", size=0.15) +
+  geom_map(data = my_df,
+           map = state,
+           aes(fill = hits, map_id = region),
+           color="#ffffff", size=0.15) +
+  scale_fill_continuous(low = 'white', high = '#0073cf') +
+  theme(panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank()) + ggtitle("Interest level in the US")
+```
+
+```{r}
+# interest in 'mbti' in the world
+world <- map_data("world")
+ 
+# change the region names to match the region names returned by Google Trends
+world %>%
+  mutate(region = replace(region, region=="USA", "United States")) %>%
+  mutate(region = replace(region, region=="UK", "United Kingdom")) -> world
+ 
+# perform search
+res_world <- gtrends("mbti", time = "all")
+ 
+# create data frame for plotting
+res_world$interest_by_country %>%
+  filter(location %in% world$region, hits > 0) %>%
+  mutate(region = location, hits = as.numeric(hits)) %>%
+  select(region, hits) -> my_df
+ 
+ggplot() +
+  geom_map(data = world,
+           map = world,
+           aes(x = long, y = lat, map_id = region),
+           fill="#ffffff", color="#ffffff", size=0.15) +
+  geom_map(data = my_df,
+           map = world,
+           aes(fill = hits, map_id = region),
+           color="#ffffff", size=0.15) +
+  scale_fill_continuous(low = 'grey', high = 'blue') +
+  theme(axis.ticks = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank())
+```
+
+By: Joey Zhao
